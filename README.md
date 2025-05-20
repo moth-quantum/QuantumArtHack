@@ -44,8 +44,7 @@ be mitigated, but at some point it can't be done. This is why short circuits for
 Although quantum computers have a more obvious to see advantage in quantum tasks, nonetheless it is thought that we can see some advantages in tasks involving
 classical data loaded onto a quantum computer. Although pictures may not be 'the' data-type that will see an advantage from quantum computing, it is nonetheless 
 the case that a lot of data can be input in an image-like format, and studying pictoral algorihtms is definitely way easier on the eyes than pure data-driven tasks! 
-Also, with a quantum state representing an image, you can see the results of any quantum transformation of the picture as a new picture! Of course, it needs to be 
-seen from many 'angles', but maybe it can help with visualizing what 
+Also, with a quantum state representing an image, you can see the results of any quantum transformation of the picture as a new picture! 
 
 ## QPIXL algorithm
 
