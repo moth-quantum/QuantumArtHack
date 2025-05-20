@@ -1,11 +1,5 @@
-# Welcome to the art challenge! 
-In this challenge you have two tracks. These are in your challenge description, but both require you to potentially use the QPIXL embedding scheme to either modify or generate some image, sound, or animation via this encoding procedure through a quantum simulator.
-
-
-For the first track, you are expected to alter the encoded state in some interesting way and produce some artefact. Or you can embed this into something you are more comfortable with. 
-
-
-For the second track, you are expected to modify the code and expand on the idea of mixing an interesting algorithm (say VQE, QAOA, etc.) with the data encoding in some flexible manner and be able to see the resulting image alteration (or generation in the case of no input) related to the interleaved algorithm. 
+# Welcome to the Unitary Hack Version of QPIXL! 
+This is a special version of https://github.com/HeidelbergQuantum/ParallelQPIXL meant for the unitary hack competition. Please star and use the original in future! Challenge details will be on the unitary hack website when the hack begins. 
 
 # Table of contents and description
 
@@ -23,7 +17,10 @@ For the second track, you are expected to modify the code and expand on the idea
             - entangling multiple images
             - Simple RGB images
             - animation
- Daniel Bultrini
+Main Author: Daniel Bultrini
+Important Contributors: Jing Sun 
+A big thanks goes to the authors of the original QPIXL paper, of course. 
+
 
 # Installation 
 There is no installation, but there are requirements for using the folder. If you know how to use the tool Poetry (https://python-poetry.org/) then you only have to install it via the ```pyproject.toml``` file. If not, simply use python 3.12 for maximum compatibility (although the basic functionality will work with even later or earlier versions), and look at  ```pyproject.toml``` for the dependencies (or the import list at the top of ```QPIXL.ipynb```). Version numbering is unlikely to be very important, but the ones described in the TOML file are certain to work. Then you only need the ```qpixl.py``` and ```helper.py``` files, or one of the folders titles ```QPIXL_***``` to use in your project depending on the other libraries you expect to use. 
