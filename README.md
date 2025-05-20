@@ -150,3 +150,7 @@ You can of course think that you can split the different channels and encode eac
 You can animate the transformation from one statevector representing an image to another smoothely! Ever wondered what that looks like (using linear interpolation for the different angles?) The possibilities are endless - maybe you can use a time evolution operator? Creativity is your only boundary. 
 
 ![](figures/transform.gif)
+
+
+# Authorship
+This is a project completely based on https://github.com/HeidelbergQuantum/ParallelQPIXL by the same lead author, Daniel Bultrini, and the code does not belong to MOTH quantum, although it is given freely to use for this challenge. As it is based on an algorithm that can be found in the scientific literature this is merely a convenient implementation of the QPIXL framework, with some added tweaks to make it interesting to a highly technical creative user. 
