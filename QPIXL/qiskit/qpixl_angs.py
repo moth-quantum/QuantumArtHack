@@ -50,9 +50,9 @@ def cFRQIangs(a, compression, pre_pattern=None, post_pattern=None):
         a[it] = 0
     # print(a)
     # Construct FRQI circuit
-    circuit = QuantumCircuit(k + 2)
+    circuit = QuantumCircuit(k + 1)
     # Hadamard register
-    circuit.h(range(2, k + 2))
+    circuit.h(range(1, k + 1))
     circuit.x(0)
     # Compressed uniformly controlled rotation register
     ctrl, pc, i = 0, 0, 0
@@ -62,12 +62,7 @@ def cFRQIangs(a, compression, pre_pattern=None, post_pattern=None):
 
         # Add RY gate
         if a[i] != 0:
-            if pre_pattern is None:
-                circuit.ry(a[i], 1)
-            else:
-                pre_pattern(circuit)
-                circuit.cry(a[i], 0, 1)
-                post_pattern(circuit)
+            circuit.ry(a[i], 1)
 
         # Loop over sequence of consecutive zero angles to
         # cancel out CNOTS (or rather, to not include them)
