@@ -186,13 +186,13 @@ def pad_0(img, val=0):
     """Pads array with 0s to next power of two
 
     Args:
-        img (numpy array): image, can be wide
+        img (numpy array): image, can be wide. Needs to be transposed prior to padding.
 
     Returns:
         padded image: flattened image with appropiate padding for quantum algorithm
     """
     img = np.array(img)
-    img.flatten()
+    img = img.flatten()
     return np.pad(img, (0, nextpow2(len(img)) - len(img)), constant_values=val)
 
 
