@@ -501,6 +501,5 @@ def example_custom_alg_function(circuit, angle, index):
 
 
 if __name__ == "__main__":
-    # This code runs when the script is executed directly
     print("QPIXL Circuit Integrator module loaded successfully.")
     print("Use CircuitIntegrator and QPIXLAlgorithmEncoder classes to integrate quantum circuits.")
