@@ -15,7 +15,6 @@ class IntegrationMode(Enum):
     """Enum defining different modes of circuit integration."""
     MERGE = "merge"               # Combine circuits side by side
     SEQUENTIAL = "sequential"     # Apply circuits one after another
-    INTERLEAVED = "interleaved"   # Insert algorithm operations during encoding
     ENTANGLE = "entangle"         # Connect circuits with entangling operations
     CUSTOM = "custom"             # User-defined custom integration rule
 
@@ -41,7 +40,7 @@ class CircuitIntegrator:
         Args:
             data_circuit: The QPIXL-encoded data circuit
             algorithm_circuit: An arbitrary quantum circuit
-            mode: Integration mode (merge, sequential, interleaved, entangle, custom)
+            mode: Integration mode (merge, sequential, entangle, custom)
             connection_map: Dictionary mapping data qubits to algorithm qubits
             custom_rule: Custom function to apply for integration
             **kwargs: Additional arguments for specific integration modes
@@ -56,17 +55,13 @@ class CircuitIntegrator:
             except ValueError:
                 raise ValueError(f"Unknown integration mode: {mode}")
         
-        # Default empty connection map if not provided
         if connection_map is None:
             connection_map = {}
             
-        # Select integration method based on mode
         if mode == IntegrationMode.MERGE:
             return self._merge_circuits(data_circuit, algorithm_circuit, connection_map, **kwargs)
         elif mode == IntegrationMode.SEQUENTIAL:
             return self._sequential_circuits(data_circuit, algorithm_circuit, **kwargs)
-        elif mode == IntegrationMode.INTERLEAVED:
-            return self._interleaved_circuits(data_circuit, algorithm_circuit, **kwargs)
         elif mode == IntegrationMode.ENTANGLE:
             return self._entangle_circuits(data_circuit, algorithm_circuit, connection_map, **kwargs)
         elif mode == IntegrationMode.CUSTOM:
@@ -92,22 +87,16 @@ class CircuitIntegrator:
         Returns:
             A merged quantum circuit
         """
-        # Create a new circuit with combined qubits
         combined = QuantumCircuit(data_circuit.num_qubits + algorithm_circuit.num_qubits)
         
-        # Add data circuit to first qubits
         combined = combined.compose(data_circuit, qubits=range(data_circuit.num_qubits))
         
-        # Add algorithm circuit to remaining qubits
         algo_qubits = range(data_circuit.num_qubits, 
                           data_circuit.num_qubits + algorithm_circuit.num_qubits)
         combined = combined.compose(algorithm_circuit, qubits=algo_qubits)
         
-        # Add connections between circuits if specified
         for data_qubit, algo_qubit in connection_map.items():
-            # Adjust algorithm qubit index
             adjusted_algo_qubit = data_circuit.num_qubits + algo_qubit
-            # Add CNOT as the basic connection
             combined.cx(data_qubit, adjusted_algo_qubit)
         
         return combined
@@ -126,71 +115,15 @@ class CircuitIntegrator:
         Returns:
             A sequential quantum circuit
         """
-        # Check if circuits have same number of qubits
         if data_circuit.num_qubits != algorithm_circuit.num_qubits:
             raise ValueError(
                 f"Circuits must have same number of qubits for sequential integration: "
                 f"{data_circuit.num_qubits} vs {algorithm_circuit.num_qubits}"
             )
             
-        # Create a copy of the data circuit
         combined = data_circuit.copy()
         
-        # Append the algorithm circuit
         combined.compose(algorithm_circuit, inplace=True)
-        
-        return combined
-    
-    def _interleaved_circuits(self, 
-                             data_circuit: QuantumCircuit,
-                             algorithm_circuit: QuantumCircuit,
-                             **kwargs) -> QuantumCircuit:
-        """
-        Create a circuit with algorithm operations interleaved during data preparation.
-        
-        This is a simplified implementation. For more complex interleaving,
-        use QPIXLAlgorithmEncoder instead.
-        
-        Args:
-            data_circuit: QPIXL data circuit
-            algorithm_circuit: Algorithm circuit
-            
-        Returns:
-            An interleaved quantum circuit
-        """
-        # This is a simplified approach - for real interleaving during QPIXL encoding,
-        # it's better to use QPIXLAlgorithmEncoder
-        
-        # Get operations from both circuits
-        data_ops = data_circuit.data
-        algo_ops = algorithm_circuit.data
-        
-        # Create a new circuit with the same size as data circuit
-        combined = QuantumCircuit(data_circuit.num_qubits)
-        
-        # Interleave operations with a basic strategy
-        data_idx = 0
-        algo_idx = 0
-        
-        # Simple alternating strategy
-        while data_idx < len(data_ops) or algo_idx < len(algo_ops):
-            # Add a data operation if available
-            if data_idx < len(data_ops):
-                instr = data_ops[data_idx]
-                combined.append(instr.operation, instr.qubits)
-                data_idx += 1
-            
-            # Add an algorithm operation if available
-            if algo_idx < len(algo_ops):
-                # Map algorithm qubit indices to data circuit qubits
-                # This is a simple mapping - may need customization
-                instr = algo_ops[algo_idx]
-                
-                # Skip if algorithm operation uses more qubits than available
-                if all(q.index < combined.num_qubits for q in instr.qubits):
-                    combined.append(instr.operation, instr.qubits)
-                    
-                algo_idx += 1
         
         return combined
     
@@ -210,20 +143,15 @@ class CircuitIntegrator:
         Returns:
             An entangled quantum circuit
         """
-        # First merge the circuits
         combined = self._merge_circuits(data_circuit, algorithm_circuit, {}, **kwargs)
         
-        # If no connections specified, entangle first qubit
         if not connection_map:
             if data_circuit.num_qubits > 0 and algorithm_circuit.num_qubits > 0:
-                connection_map = {0: 0}  # Connect first qubit to first algorithm qubit
+                connection_map = {0: 0}  
         
-        # Add entanglement operations
         for data_qubit, algo_qubit in connection_map.items():
-            # Adjust algorithm qubit index
             adjusted_algo_qubit = data_circuit.num_qubits + algo_qubit
             
-            # Get entanglement type from kwargs or use default
             entangle_type = kwargs.get('entangle_type', 'cx')
             
             if entangle_type == 'cx':
@@ -269,7 +197,6 @@ class QPIXLAlgorithmEncoder:
         Returns:
             A QPIXL circuit with integrated algorithm operations
         """
-        # Process the data for QPIXL encoding
         a = hlp.convertToAngles(data)
         a = hlp.preprocess_image(a)
         n = len(a)
@@ -278,39 +205,31 @@ class QPIXLAlgorithmEncoder:
         a = hlp.sfwht(a)
         a = hlp.grayPermutation(a)
         
-        # Apply compression if requested
         if compression > 0:
             a_sort_ind = np.argsort(np.abs(a))
             cutoff = int((compression / 100.0) * n)
             for it in a_sort_ind[:cutoff]:
                 a[it] = 0
         
-        # Create quantum registers
         storage_qubits = QuantumRegister(k, "storage")
         encoding_qubit = QuantumRegister(1, "encoding")
         algo_qubits = QuantumRegister(algorithm_qubits, "algorithm")
         
-        # Create quantum circuit
         circuit = QuantumCircuit(storage_qubits, encoding_qubit, algo_qubits)
         
-        # Apply Hadamard gates to storage qubits
         circuit.h(storage_qubits)
         
-        # Perform encoding with algorithm operations
         ctrl, pc, i = 0, 0, 0
         while i < (2**k):
-            pc = int(0)  # Reset parity check
+            pc = int(0)  
             
-            # Apply algorithm operations and encoding when angle is non-zero
             if a[i] != 0:
-                # Apply algorithm operations if specified
                 if algorithm_ops:
                     for op in algorithm_ops:
                         gate_type = op.get('gate')
                         params = op.get('params', {})
                         
                         if gate_type == 'unitary':
-                            # Apply unitary gate (like in cFRQI_with_alg_demo)
                             angle = a[i]
                             unitary_matrix = np.array([
                                 [np.cos(angle), -1j * np.sin(angle)],
@@ -319,54 +238,45 @@ class QPIXLAlgorithmEncoder:
                             circuit.unitary(unitary_matrix, algo_qubits[0], label=f"alg_{i}")
                             
                         elif gate_type == 'cry':
-                            # Apply controlled rotation Y gate
                             circuit.cry(a[i], algo_qubits[0], encoding_qubit[0])
                             
                         elif gate_type == 'crx':
-                            # Apply controlled rotation X gate
                             circuit.crx(a[i], algo_qubits[0], encoding_qubit[0])
                             
                         elif gate_type == 'custom':
-                            # Call custom function with circuit, angle, and index
                             custom_func = params.get('func')
                             if custom_func:
                                 custom_func(circuit, a[i], i)
                                 
                         # Add more gate types as needed
                 
-                # Apply the standard encoding rotation if not overridden
                 if not any(op.get('gate') == 'cry' for op in algorithm_ops or []):
                     circuit.ry(a[i], encoding_qubit)
             
-            # Calculate control qubit
             if i == ((2**k) - 1):
                 ctrl = 0
             else:
                 ctrl = hlp.grayCode(i) ^ hlp.grayCode(i + 1)
                 ctrl = k - hlp.countr_zero(ctrl, n_bits=k + 1) - 1
             
-            pc ^= 2**ctrl  # Update parity check
+            pc ^= 2**ctrl  
             i += 1
             
-            # Skip zero angles
             while i < (2**k) and a[i] == 0:
                 if i == ((2**k) - 1):
                     ctrl = 0
                 else:
                     ctrl = hlp.grayCode(i) ^ hlp.grayCode(i + 1)
                     ctrl = k - hlp.countr_zero(ctrl, n_bits=k + 1) - 1
-                pc ^= 2**ctrl  # Update parity check
+                pc ^= 2**ctrl  
                 i += 1
             
-            # Apply CNOT gates based on parity check
             for j in range(k):
                 if (pc >> j) & 1:
                     circuit.cx(storage_qubits[j], encoding_qubit[0])
         
-        # Reverse bits
         circuit.reverse_bits()
         
-        # Apply post-processing if specified
         if post_processing:
             post_processing(circuit)
         
@@ -384,49 +294,24 @@ def create_pattern_function(gate_name: str, **params) -> Tuple[Callable, any]:
     Returns:
         A tuple of (pattern_function, angle)
     """
+    # Define gate operations dictionary
+    gate_ops = {
+        'rx': lambda c: c.rx(params.get('angle', 0), params.get('target', 0)),
+        'ry': lambda c: c.ry(params.get('angle', 0), params.get('target', 0)),
+        'rz': lambda c: c.rz(params.get('angle', 0), params.get('target', 0)),
+        'crx': lambda c: c.crx(params.get('angle', 0), params.get('control', 1), params.get('target', 0)),
+        'cry': lambda c: c.cry(params.get('angle', 0), params.get('control', 1), params.get('target', 0)),
+        'crz': lambda c: c.crz(params.get('angle', 0), params.get('control', 1), params.get('target', 0)),
+        'cx': lambda c: c.cx(params.get('control', 1), params.get('target', 0)),
+        'cnot': lambda c: c.cx(params.get('control', 1), params.get('target', 0)),
+        'h': lambda c: c.h(params.get('target', 0))
+    }
+    
     def pattern_func(circ):
         """Pattern function to apply the specified gate to the circuit."""
         gate_name_lower = gate_name.lower()
-        
-        if gate_name_lower == 'rx':
-            circ.rx(params.get('angle', 0), params.get('target', 0))
-        
-        elif gate_name_lower == 'ry':
-            circ.ry(params.get('angle', 0), params.get('target', 0))
-        
-        elif gate_name_lower == 'rz':
-            circ.rz(params.get('angle', 0), params.get('target', 0))
-        
-        elif gate_name_lower == 'crx':
-            circ.crx(
-                params.get('angle', 0), 
-                params.get('control', 1), 
-                params.get('target', 0)
-            )
-        
-        elif gate_name_lower == 'cry':
-            circ.cry(
-                params.get('angle', 0), 
-                params.get('control', 1), 
-                params.get('target', 0)
-            )
-        
-        elif gate_name_lower == 'crz':
-            circ.crz(
-                params.get('angle', 0), 
-                params.get('control', 1), 
-                params.get('target', 0)
-            )
-        
-        elif gate_name_lower == 'cx' or gate_name_lower == 'cnot':
-            circ.cx(
-                params.get('control', 1), 
-                params.get('target', 0)
-            )
-            
-        elif gate_name_lower == 'h':
-            circ.h(params.get('target', 0))
-            
+        if gate_name_lower in gate_ops:
+            gate_ops[gate_name_lower](circ)
         else:
             raise ValueError(f"Unsupported gate: {gate_name}")
     
@@ -447,6 +332,16 @@ def create_post_processing(operations: List[Dict]) -> Callable:
     Returns:
         A post-processing function
     """
+    gate_ops = {
+        'h': lambda c, q, p: c.h(q),
+        'x': lambda c, q, p: c.x(q),
+        'y': lambda c, q, p: c.y(q),
+        'z': lambda c, q, p: c.z(q),
+        'rx': lambda c, q, p: c.rx(p.get('angle', 0), q),
+        'ry': lambda c, q, p: c.ry(p.get('angle', 0), q),
+        'rz': lambda c, q, p: c.rz(p.get('angle', 0), q),
+    }
+    
     def post_process(circuit):
         """Apply the specified operations to the circuit."""
         for op in operations:
@@ -455,51 +350,29 @@ def create_post_processing(operations: List[Dict]) -> Callable:
             params = op.get('params', {})
             
             for q in qubits:
-                if gate == 'h':
-                    circuit.h(q)
-                elif gate == 'x':
-                    circuit.x(q)
-                elif gate == 'y':
-                    circuit.y(q)
-                elif gate == 'z':
-                    circuit.z(q)
-                elif gate == 'rx':
-                    circuit.rx(params.get('angle', 0), q)
-                elif gate == 'ry':
-                    circuit.ry(params.get('angle', 0), q)
-                elif gate == 'rz':
-                    circuit.rz(params.get('angle', 0), q)
-                # Add more gate types as needed
+                if gate in gate_ops:
+                    gate_ops[gate](circuit, q, params)
     
     return post_process
 
-
-# Example usage functions
-def example_algorithm_operations():
-    """Create example algorithm operations for QPIXLAlgorithmEncoder."""
-    return [
-        {
-            'gate': 'unitary',
-            'params': {},  # Angle will be taken from the data
-        },
-        {
-            'gate': 'cry',
-            'params': {},  # Angle will be taken from the data
-        }
-    ]
-
-
-def example_custom_alg_function(circuit, angle, index):
-    """Example custom algorithm function for QPIXLAlgorithmEncoder."""
-    # Get the algorithm qubit(s)
-    algo_qubits = circuit.qregs[2]  # Assuming algorithm qubits are in the third register
-    encoding_qubit = circuit.qregs[1]  # Assuming encoding qubit is in the second register
-    
-    # Apply some gates based on the angle and index
-    circuit.ry(angle / 2, algo_qubits[0])
-    circuit.cx(algo_qubits[0], encoding_qubit[0])
-
-
-if __name__ == "__main__":
-    print("QPIXL Circuit Integrator module loaded successfully.")
-    print("Use CircuitIntegrator and QPIXLAlgorithmEncoder classes to integrate quantum circuits.")
+# ------------------------------------------------------------
+# USAGE EXAMPLES
+# ------------------------------------------------------------
+# To create circuit integrations:
+#
+# integrator = CircuitIntegrator()
+# combined = integrator.integrate(
+#     data_circuit,
+#     algorithm_circuit,
+#     mode=IntegrationMode.MERGE,
+#     connection_map={0: 0, 1: 1}
+# )
+#
+# To create QPIXL circuits with algorithm operations:
+#
+# encoder = QPIXLAlgorithmEncoder()
+# circuit = encoder.create_circuit(
+#     data,
+#     compression=0,
+#     algorithm_ops=[{'gate': 'unitary', 'params': {}}]
+# )
