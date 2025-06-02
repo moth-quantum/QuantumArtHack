@@ -15,6 +15,7 @@ qiskit-aer = "^0.17.0"
 soundfile = "^0.13.1"
 pylatexenc = "^2.10"
 playsound3 = "^3.2.2"
+qiskit-ibm-runtime = "^0.40.0"
 
 [tool.poetry.group.dev.dependencies]
 ipykernel = "^6.29.5"
