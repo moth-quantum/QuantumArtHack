@@ -48,7 +48,6 @@ class CircuitIntegrator:
         Returns:
             A quantum circuit combining the data and algorithm circuits
         """
-        # Convert string mode to enum if needed
         if isinstance(mode, str):
             try:
                 mode = IntegrationMode(mode.lower())
@@ -248,8 +247,6 @@ class QPIXLAlgorithmEncoder:
                             if custom_func:
                                 custom_func(circuit, a[i], i)
                                 
-                        # Add more gate types as needed
-                
                 if not any(op.get('gate') == 'cry' for op in algorithm_ops or []):
                     circuit.ry(a[i], encoding_qubit)
             
@@ -294,7 +291,6 @@ def create_pattern_function(gate_name: str, **params) -> Tuple[Callable, any]:
     Returns:
         A tuple of (pattern_function, angle)
     """
-    # Define gate operations dictionary
     gate_ops = {
         'rx': lambda c: c.rx(params.get('angle', 0), params.get('target', 0)),
         'ry': lambda c: c.ry(params.get('angle', 0), params.get('target', 0)),
