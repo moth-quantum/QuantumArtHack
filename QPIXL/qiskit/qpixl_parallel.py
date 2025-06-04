@@ -22,70 +22,67 @@ def cFRQI(data, compression, additional_shift=0):
     Returns:
         QuantumCircuit: qiskit circuit that prepared the encoded image
     """
+    import numpy as np
+    from qiskit import QuantumCircuit
+    import QPIXL.helper as hlp
+
+    # Preprocessing each image: convert to angles, flatten, transform
     for ind, a in enumerate(data):
-        data[ind] = hlp.convertToAngles(data[ind])  # convert grayscale to angles
-        data[ind] = hlp.preprocess_image(
-            data[ind]
-        )  # need to flatten the transpose for easier decoding,
-        # only really necessary if you want to recover an image.
-        # for classification tasks etc. transpose isn't required.
+        data[ind] = hlp.convertToAngles(a)
+        data[ind] = hlp.preprocess_image(data[ind])
         n = len(data[ind])
         k = hlp.ilog2(n)
-
         data[ind] = 2 * data[ind]
         data[ind] = hlp.sfwht(data[ind])
         data[ind] = hlp.grayPermutation(data[ind])
+        # Apply compression by zeroing small coefficients
         a_sort_ind = np.argsort(np.abs(data[ind]))
-
-        # set smallest absolute values of a to zero according to compression param
         cutoff = int((compression / 100.0) * n)
         for it in a_sort_ind[:cutoff]:
             data[ind][it] = 0
-    # print(a)
-    # Construct FRQI circuit
+
+    # Building the circuit with k address qubits and len(data) amplitude qubits
     circuit = QuantumCircuit(k + len(data))
-    # Hadamard register
-    circuit.h(range(k))
-    # Compressed uniformly controlled rotation register
-    ctrl, pc, i = 0, 0, 0
+    circuit.h(range(k))  # Hadamards on address register
+
+    i = 0
     while i < (2**k):
-        # Reset the parity check
-        pc = int(0)
-        # Add RY gate
+        # Apply RY rotations for all images at index i
         for ind, arr in enumerate(data):
             if arr[i] != 0:
                 circuit.ry(arr[i], k + ind)
-        # Loop over sequence of consecutive zero angles to
-        # cancel out CNOTS (or rather, to not include them)
-        if i == ((2**k) - 1):
+
+        # Compute Gray-code transition (control qubit) for moving from i to i+1
+        if i == (2**k - 1):
             ctrl = 0
         else:
-            ctrl = hlp.grayCode(i) ^ hlp.grayCode(i + 1)
-            ctrl = k - hlp.countr_zero(ctrl, n_bits=k + 1) - 1
-        # Update parity check
-        pc ^= 2**ctrl
-        i += 1
-        pc_list = []
-        for ind, a in enumerate(data):
-            while i < (2**k) and a[i] == 0:
-                # Compute control qubit
-                if i == ((2**k) - 1):
-                    ctrl = 0
-                else:
-                    ctrl = hlp.grayCode(i) ^ hlp.grayCode(i + 1)
-                    ctrl = k - hlp.countr_zero(ctrl, n_bits=k + 1) - 1
+            g = hlp.grayCode(i) ^ hlp.grayCode(i + 1)
+            ctrl = k - hlp.countr_zero(g, n_bits=k+1) - 1
 
-                # Update parity check
+        i += 1  # move to next index
+
+        # Build parity list: one parity mask per image
+        pc_list = []
+        for ind, arr in enumerate(data):
+            pc = 0
+            # Include the initial Gray-code transition for this image
+            if ctrl:
                 pc ^= 2**ctrl
+            # Skipping over the  runs of zeros for this image
+            while i < (2**k) and arr[i] == 0:
+                if i == (2**k - 1):
+                    next_ctrl = 0
+                else:
+                    g = hlp.grayCode(i) ^ hlp.grayCode(i + 1)
+                    next_ctrl = k - hlp.countr_zero(g, n_bits=k+1) - 1
+                pc ^= 2**next_ctrl
                 i += 1
             pc_list.append(pc)
-        for j in range(k):
-            for ind in range(len(data)):
-                pc = pc_list[ind]
+
+        # Applying  CNOTs: loop over each image, then over address bits
+        for ind, pc in enumerate(pc_list):
+            for j in range(k):
                 if (pc >> j) & 1:
-                    circuit.cx(permutation(j, ind + additional_shift, k), k + ind)
+                    circuit.cx(j, k + ind)
 
     return circuit.reverse_bits()
-
-
-# c = cFRQI(np.random.random((3,2**3)),0)
