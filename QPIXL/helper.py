@@ -182,18 +182,29 @@ def readpgm(name):
     return (np.array(data[3:]), (data[1], data[0]), data[2])
 
 
-def pad_0(img, val=0):
+def is_power_of_two(x):
+    x = np.asarray(x)
+    return (x > 0) & ((x & (x - 1)) == 0)
+
+def pad_0(img, val=0, size_pow2=0):
     """Pads array with 0s to next power of two
 
     Args:
         img (numpy array): image, can be wide. Needs to be transposed prior to padding.
+        val (int): the values with which to pad the img
+        size_pow2 (int): The result size, which needs to be a power of two. 
+                        -Defaults to nextpow2(len(img))
 
     Returns:
         padded image: flattened image with appropiate padding for quantum algorithm
     """
     img = np.array(img)
     img = img.flatten()
-    return np.pad(img, (0, nextpow2(len(img)) - len(img)), constant_values=val)
+    if size_pow2 == 0:
+        size_pow2 = nextpow2(len(img))
+    if not is_power_of_two(size_pow2):
+        raise ValueError(f"The size_pow2 arg must be a power of 2. Got {size_pow2}")
+    return np.pad(img, (0, size_pow2 - len(img)), constant_values=val)
 
 
 def decodeQPIXL(
