@@ -4,6 +4,13 @@ import numpy as np
 from qiskit.quantum_info import partial_trace
 
 
+def convertForProcessing(a):
+    """
+    Convert to avoid integer overflow
+    """
+    return a.astype(np.float32)
+
+
 def sfwht(a):
     """Fast walsh hadamard transform with scaling
 
