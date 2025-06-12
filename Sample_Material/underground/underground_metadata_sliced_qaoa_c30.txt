@@ -1,0 +1,5 @@
+Original file: Sample_Material\underground.mp3
+Compression: 30%
+Slice size: 2
+Insertion rule: interval
+Connection rule: cx
