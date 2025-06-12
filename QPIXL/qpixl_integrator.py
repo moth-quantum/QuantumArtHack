@@ -192,10 +192,8 @@ class CircuitIntegrator:
                 qargs = op[1]
                 cargs = op[2] if len(op) > 2 else []
                 
-                # Map qubits to their indices
                 qbit_indices = [circuit.qubits.index(q) for q in qargs]
                 
-                # Append the instruction to the new circuit
                 slice_circuit.append(instruction, qbit_indices, cargs)
                 
             slices.append(slice_circuit)
@@ -229,19 +227,15 @@ class CircuitIntegrator:
         
         slices = self._slice_circuit(algorithm_circuit, slice_size)
         
-        # Create a new circuit with all qubits from both circuits
         total_qubits = data_circuit.num_qubits + algorithm_circuit.num_qubits
         combined = QuantumCircuit(total_qubits)
         
-        # Determine where to insert algorithm slices
         if insertion_rule == 'interval':
-            # Create insertion points at regular intervals
             num_ops = len(data_circuit.data)
             insertion_points = list(range(0, num_ops, interval))
             if not insertion_points:
                 insertion_points = [0]
         else:
-            # Default: evenly distribute slices throughout the circuit
             num_ops = len(data_circuit.data)
             if len(slices) > 1:
                 step = max(1, num_ops // len(slices))
@@ -249,9 +243,8 @@ class CircuitIntegrator:
                 if len(insertion_points) > len(slices):
                     insertion_points = insertion_points[:len(slices)]
             else:
-                insertion_points = [num_ops // 2]  # Insert in the middle
+                insertion_points = [num_ops // 2]  
         
-        # Split the data circuit at insertion points
         segments = []
         last_point = 0
         for point in insertion_points + [len(data_circuit.data)]:
@@ -264,21 +257,17 @@ class CircuitIntegrator:
                 segments.append(segment)
                 last_point = point
         
-        # Build the combined circuit by alternating segments and slices
         data_qubits = list(range(data_circuit.num_qubits))
         algo_qubits = list(range(data_circuit.num_qubits, total_qubits))
         
         current_slice = 0
-        for i, segment in enumerate(segments[:-1]):  # Skip the last segment for now
-            # Add the data circuit segment
+        for i, segment in enumerate(segments[:-1]):  
             combined.compose(segment, data_qubits, inplace=True)
             
-            # Add the algorithm slice if available
             if current_slice < len(slices):
                 slice_circ = slices[current_slice]
                 combined.compose(slice_circ, algo_qubits[:slice_circ.num_qubits], inplace=True)
                 
-                # Add connections between data and algorithm qubits
                 for data_qubit, algo_qubit in connection_map.items():
                     adjusted_algo_qubit = data_circuit.num_qubits + algo_qubit
                     
@@ -291,16 +280,13 @@ class CircuitIntegrator:
                 
                 current_slice += 1
         
-        # Add the final segment of the data circuit
         if segments:
             combined.compose(segments[-1], data_qubits, inplace=True)
         
-        # Add any remaining algorithm slices at the end
         while current_slice < len(slices):
             slice_circ = slices[current_slice]
             combined.compose(slice_circ, algo_qubits[:slice_circ.num_qubits], inplace=True)
             
-            # Add connections between data and algorithm qubits
             for data_qubit, algo_qubit in connection_map.items():
                 adjusted_algo_qubit = data_circuit.num_qubits + algo_qubit
                 
@@ -510,7 +496,6 @@ class QPIXLAlgorithmEncoder:
                 slice_circ = slices[current_slice]
                 for j in range(min(slice_circ.num_qubits, len(algo_qubits))):
                     for inst, qargs, cargs in slice_circ.data:
-                        # Fix the mapping of qubits - use slice_circuit.qubits.index(q) instead of q.index
                         qbit_indices = [slice_circ.qubits.index(q) for q in qargs]
                         mapped_qargs = [algo_qubits[idx] if idx < len(algo_qubits) else qarg 
                                     for idx, qarg in zip(qbit_indices, qargs)]
