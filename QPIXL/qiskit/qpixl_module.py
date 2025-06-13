@@ -3,10 +3,12 @@ from qiskit import QuantumCircuit, transpile
 from enum import Enum
 from QPIXL.qiskit.qpixl import cFRQI
 
+
 class InjectionPoint(Enum):
     BEFORE_ENCODING = "before"
     DURING_ENCODING = "during"
     AFTER_ENCODING = "after"
+
 
 class QPIXLModule:
     def __init__(self, image_array, compression=0, name="QPIXLModule", algorithm_qubits=0):
@@ -47,14 +49,20 @@ class QPIXLModule:
         return self
 
     def get_circuit(self, optimize=False, verbose=False):
+        # Total qubits = log2(image) + encoding qubit + optional algorithm qubits
         total_qubits = int(np.log2(len(self.image_array))) + 2 + self._algo_qubits
         circuit = QuantumCircuit(total_qubits, name=self._name)
 
         # Inject before encoding
         self._apply_injections(circuit, InjectionPoint.BEFORE_ENCODING, total_qubits)
 
-        # Encode angles with QPIXL
+        # Encode angles with QPIXL (gets a new circuit)
         base = cFRQI(self.image_array, self.compression)
+
+        # Strip ghost registers and names
+        base.name = None
+        base.qregs = []
+        base.cregs = []
 
         # Inject during encoding (per angle)
         for i, angle in enumerate(self.image_array):
@@ -68,8 +76,9 @@ class QPIXLModule:
                     if not inj.get("cond") or inj["cond"](i, angle):
                         self._apply_gate(circuit, inj["gate"], q, inj["params"])
 
-        # Combine encoded circuit
-        circuit.compose(base, inplace=True)
+        # Compose base into the correct qubit range (avoid mismatch)
+        base_qubit_count = base.num_qubits
+        circuit.compose(base, qubits=range(base_qubit_count), inplace=True)
 
         # Inject after encoding
         self._apply_injections(circuit, InjectionPoint.AFTER_ENCODING, total_qubits)
