@@ -8,7 +8,7 @@ import warnings
 import time
 from abc import ABC, abstractmethod
 from itertools import zip_longest
-import numpy as np # Added for create_sliced_circuit
+import numpy as np  # For create_sliced_circuit
 
 # ----- Base Module -----
 class CircuitModule(ABC):
@@ -97,13 +97,15 @@ class QuantumComposer:
         qset, cset = set(), set()
         for m in self.modules:
             qc = m.get_circuit()
-            print(f"  ↪ {m.name}")
+            print(f"  ↪ {m.name}")
             for q in qc.qubits:
                 if q not in qset:
-                    qubits.append(q); qset.add(q)
+                    qubits.append(q)
+                    qset.add(q)
             for c in qc.clbits:
                 if c not in cset:
-                    clbits.append(c); cset.add(c)
+                    clbits.append(c)
+                    cset.add(c)
         combined = QuantumCircuit(qubits, clbits,
                                   name="_then_".join(m.name for m in self.modules))
         for m in self.modules:
@@ -139,70 +141,73 @@ class QuantumComposer:
 
     # --- RULE: hardware_aware_sequential ---
     def _combine_hw_aware(self, kwargs: Dict[str, Any]) -> QuantumCircuit:
-        backend        = kwargs.get("backend")
-        cmap         = kwargs.get("coupling_map")
-        gates        = kwargs.get("basis_gates")
-        opt          = kwargs.get("optimization_level", 1)
+        backend = kwargs.get("backend")
+        cmap = kwargs.get("coupling_map")
+        gates = kwargs.get("basis_gates")
+        opt = kwargs.get("optimization_level", 1)
         raw = self._combine_sequential({})
         if raw.num_qubits == 0:
             return raw
         return qiskit.transpile(raw,
-                                 backend=backend,
-                                 coupling_map=cmap,
-                                 basis_gates=gates,
-                                 optimization_level=opt)
+                                backend=backend,
+                                coupling_map=cmap,
+                                basis_gates=gates,
+                                optimization_level=opt)
 
-    # --- RULE: slice ---
+    # --- RULE: slice (patched) ---
     def _combine_slice(self, kwargs: Dict[str, Any]) -> QuantumCircuit:
-        # Grab parameters
         slice_size = kwargs.get("slice_size", 3)
         connection_rule = kwargs.get("connection_rule", "cx")
-        # Updated connection_map to specify module qubits: [(data_q, algo_q)]
-        connection_map = kwargs.get("connection_map", [(0, 0)])  # Default connects q0 of each
+        connection_map = kwargs.get("connection_map", [(0, 0)])
+
         if len(self.modules) != 2:
             raise ValueError("Slice rule currently only supports exactly 2 modules")
+
         data_mod, algo_mod = self.modules
-        # Get circuits
         data_qc = data_mod.get_circuit()
         algo_qc = algo_mod.get_circuit()
-        # Total qubits = sum of both circuits' qubits
+
         total_qubits = data_qc.num_qubits + algo_qc.num_qubits
         combined = QuantumCircuit(total_qubits, name=f"Sliced_{data_mod.name}__{algo_mod.name}")
-        # Slice into chunks
+
         def chunk_circuit(qc: QuantumCircuit):
             chunks = []
             for i in range(0, len(qc.data), slice_size):
                 sub = QuantumCircuit(qc.num_qubits, qc.num_clbits)
-                for inst in qc.data[i : i + slice_size]:
+                for inst in qc.data[i:i + slice_size]:
                     sub.append(inst.operation, inst.qubits, inst.clbits)
                 chunks.append(sub)
             return chunks
+
         data_chunks = chunk_circuit(data_qc)
         algo_chunks = chunk_circuit(algo_qc)
-        # Interleave with separate qubit ranges
+
         data_offset = 0
         algo_offset = data_qc.num_qubits
+
         for d_chunk, a_chunk in zip_longest(data_chunks, algo_chunks, fillvalue=None):
             if d_chunk:
                 combined.compose(d_chunk, qubits=range(data_offset, data_offset + d_chunk.num_qubits), inplace=True)
             if a_chunk:
                 combined.compose(a_chunk, qubits=range(algo_offset, algo_offset + a_chunk.num_qubits), inplace=True)
-            # Apply connections between modules
-            for dq, aq in connection_map:
-                global_dq = data_offset + dq
-                global_aq = algo_offset + aq
-                if connection_rule == "cx":
-                    combined.cx(global_dq, global_aq)
-                elif connection_rule == "cz":
-                    combined.cz(global_dq, global_aq)
-                elif connection_rule == "swap":
-                    combined.swap(global_dq, global_aq)
-                else:
-                    raise ValueError(f"Unknown connection_rule: {connection_rule}")
+
+            # 🔥 FIX: Only entangle if both chunks are present
+            if d_chunk and a_chunk:
+                for dq, aq in connection_map:
+                    global_dq = data_offset + dq
+                    global_aq = algo_offset + aq
+                    if connection_rule == "cx":
+                        combined.cx(global_dq, global_aq)
+                    elif connection_rule == "cz":
+                        combined.cz(global_dq, global_aq)
+                    elif connection_rule == "swap":
+                        combined.swap(global_dq, global_aq)
+                    else:
+                        raise ValueError(f"Unknown connection_rule: {connection_rule}")
+
         return combined
 
-
-# Added for create_sliced_circuit
+# === Helper ===
 from QPIXL.qiskit.qpixl import cFRQI
 from QPIXL.helper import (
     preprocess_image,
@@ -228,24 +233,7 @@ def create_sliced_circuit(
     angle_threshold: float = 0.5,
     verbose: bool = True,
 ) -> QuantumCircuit:
-    """
-    Interleaves an algorithm into QPIXL encoding using rule-based or custom logic.
-    Supports dynamic slice injection and qubit entanglement strategies.
-
-    Args:
-        image_array: 1D flattened image data
-        compression: Percent compression (0-100)
-        algorithm_circuit: Qiskit circuit to inject
-        slice_size: Number of gates per slice
-        insertion_rule: 'interval', 'angle_threshold', or a callable
-        connection_rule: 'cx', 'cz', 'swap', 'random', or a callable
-        connection_map: {data_qubit: algo_qubit}
-        name: Name for the final circuit
-        interval: Used if insertion_rule is 'interval'
-        angle_threshold: Used if insertion_rule is 'angle_threshold'
-        verbose: Print injection logs
-    """
-    # -- Preprocess QPIXL angles
+    """Creates an interleaved QPIXL + algorithm circuit with optional CZ/CX gates."""
     a = convertToAngles(image_array)
     a = preprocess_image(a)
     n = len(a)
@@ -264,7 +252,6 @@ def create_sliced_circuit(
     total_qubits = storage_qubits + encoding_qubit + algo_qubits
     circuit = QuantumCircuit(total_qubits, name=name)
 
-    # -- Prepare slices
     algo_slices = []
     data = algorithm_circuit.data
     for i in range(0, len(data), slice_size):
@@ -276,7 +263,6 @@ def create_sliced_circuit(
     slice_idx = 0
     inserted_log = []
 
-    # -- Begin encoding with injections
     circuit.h(range(storage_qubits))
     ctrl, pc, i = 0, 0, 0
 
@@ -300,7 +286,6 @@ def create_sliced_circuit(
         pc = 0
         if a[i] != 0:
             circuit.ry(a[i], storage_qubits)
-
             if slice_idx < len(algo_slices) and should_insert(i, a[i]):
                 slice_circuit = algo_slices[slice_idx]
                 circuit.compose(
